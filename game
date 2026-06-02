@@ -1,0 +1,182 @@
+<!doctype html>
+<html class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Times Table Challenge</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Fredoka', sans-serif; }
+    @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .pop-in { animation: popIn 0.3s ease-out; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+    .shake { animation: shake 0.3s ease; }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ <script src="/_sdk/telemetry_sdk.js"></script></head>
+ <body class="h-full">
+  <div id="app" class="h-full w-full bg-gradient-to-br from-indigo-900 via-purple-900 to-fuchsia-900 overflow-auto flex items-center justify-center p-4">
+   <div id="start-screen" class="text-center max-w-md w-full">
+    <div class="bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20">
+     <div class="text-6xl mb-4">
+      🧮
+     </div>
+     <h1 id="title-text" class="text-4xl font-bold text-white mb-2">Times Table Challenge</h1>
+     <p class="text-purple-200 mb-8">Test your multiplication skills!</p>
+     <div class="space-y-4"><button onclick="startGame('medium')" class="w-full py-4 px-6 bg-amber-400 hover:bg-amber-300 text-amber-900 font-bold text-xl rounded-2xl transition-all hover:scale-105 shadow-lg"><span class="block text-2xl">Medium</span><span class="text-sm font-medium opacity-80">2, 3, 4 &amp; 5 times tables</span></button> <button onclick="startGame('hard')" class="w-full py-4 px-6 bg-rose-500 hover:bg-rose-400 text-white font-bold text-xl rounded-2xl transition-all hover:scale-105 shadow-lg"><span class="block text-2xl">Hard</span><span class="text-sm font-medium opacity-80">All times tables to 12</span></button> <button onclick="startGame('countdown')" class="w-full py-4 px-6 bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-xl rounded-2xl transition-all hover:scale-105 shadow-lg"><span class="block text-2xl">Countdown Mode</span><span class="text-sm font-medium opacity-80">60 seconds challenge</span></button>
+     </div>
+    </div>
+   </div>
+   <div id="game-screen" class="hidden text-center max-w-md w-full">
+    <div class="bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20">
+     <div class="flex justify-between items-center mb-6"><span id="question-count" class="text-purple-200 font-medium text-lg">1 / 20</span> <span id="timer" class="text-white font-bold text-lg bg-white/10 px-4 py-1 rounded-full">0:00</span>
+     </div>
+     <div id="question-card" class="bg-white/10 rounded-2xl p-8 mb-6 pop-in">
+      <p id="question-text" class="text-white text-5xl font-bold"></p>
+     </div><input id="answer-input" type="number" inputmode="numeric" autocomplete="off" class="w-full text-center text-3xl font-bold py-4 rounded-2xl bg-white/90 text-indigo-900 outline-none focus:ring-4 focus:ring-amber-400 border-none" placeholder="?" onkeydown="if(event.key==='Enter')submitAnswer()"> <button onclick="submitAnswer()" class="mt-4 w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xl rounded-2xl transition-all hover:scale-105">Next <i data-lucide="arrow-right" class="inline w-5 h-5"></i></button>
+    </div>
+   </div>
+   <div id="results-screen" class="hidden text-center max-w-md w-full">
+    <div class="bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20 pop-in">
+     <div class="text-6xl mb-4" id="results-emoji">
+      🎉
+     </div>
+     <h2 class="text-3xl font-bold text-white mb-6">Results</h2>
+     <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="bg-white/10 rounded-2xl p-4">
+       <p class="text-purple-200 text-sm">Score</p>
+       <p id="score-text" class="text-white text-3xl font-bold">0/20</p>
+      </div>
+      <div class="bg-white/10 rounded-2xl p-4">
+       <p class="text-purple-200 text-sm">Time</p>
+       <p id="time-text" class="text-white text-3xl font-bold">0:00</p>
+      </div>
+     </div>
+     <div id="results-list" class="text-left space-y-2 max-h-60 overflow-auto mb-6"></div><button onclick="showStart()" class="w-full py-3 bg-amber-400 hover:bg-amber-300 text-amber-900 font-bold text-xl rounded-2xl transition-all hover:scale-105">Play Again</button>
+    </div>
+   </div>
+  </div>
+  <script>
+  let questions = [], currentQ = 0, score = 0, startTime, timerInterval, answers = [], gameMode = 'medium', timeRemaining = 60;
+
+  const defaultConfig = { game_title: 'Times Table Challenge', primary_color: '#4c1d95', surface_color: '#ffffff1a', text_color: '#ffffff', accent_color: '#f59e0b', button_color: '#10b981', font_family: 'Fredoka', font_size: 16 };
+
+  window.elementSdk.init({
+    defaultConfig,
+    onConfigChange: async (config) => {
+      document.getElementById('title-text').textContent = config.game_title || defaultConfig.game_title;
+      const font = config.font_family || defaultConfig.font_family;
+      document.body.style.fontFamily = `${font}, sans-serif`;
+      const baseSize = config.font_size || defaultConfig.font_size;
+      document.getElementById('title-text').style.fontSize = `${baseSize * 2.5}px`;
+    },
+    mapToCapabilities: (config) => ({
+      recolorables: [
+        { get: () => config.primary_color || defaultConfig.primary_color, set: (v) => { config.primary_color = v; window.elementSdk.setConfig({ primary_color: v }); } },
+        { get: () => config.text_color || defaultConfig.text_color, set: (v) => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+        { get: () => config.accent_color || defaultConfig.accent_color, set: (v) => { config.accent_color = v; window.elementSdk.setConfig({ accent_color: v }); } },
+        { get: () => config.button_color || defaultConfig.button_color, set: (v) => { config.button_color = v; window.elementSdk.setConfig({ button_color: v }); } }
+      ],
+      borderables: [],
+      fontEditable: { get: () => config.font_family || defaultConfig.font_family, set: (v) => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); } },
+      fontSizeable: { get: () => config.font_size || defaultConfig.font_size, set: (v) => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); } }
+    }),
+    mapToEditPanelValues: (config) => new Map([['game_title', config.game_title || defaultConfig.game_title]])
+  });
+
+  function generateQuestions(mode) {
+    const tables = mode === 'medium' ? [2,3,4,5] : [2,3,4,5,6,7,8,9,10,11,12];
+    const pool = [];
+    tables.forEach(t => { for(let i=1;i<=12;i++) pool.push({a:t,b:i}); });
+    for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]; }
+    return pool.slice(0,20);
+  }
+
+  function startGame(mode) {
+    gameMode = mode;
+    questions = generateQuestions(mode === 'countdown' ? 'hard' : mode);
+    if(mode === 'countdown') { for(let i=0; i<100; i++) questions.push(...generateQuestions('hard')); }
+    currentQ = 0; score = 0; answers = []; timeRemaining = 60;
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('results-screen').classList.add('hidden');
+    document.getElementById('game-screen').classList.remove('hidden');
+    startTime = Date.now();
+    timerInterval = setInterval(updateTimer, 100);
+    showQuestion();
+  }
+
+  function updateTimer() {
+    if(gameMode === 'countdown') {
+      const elapsed = Math.floor((Date.now()-startTime)/1000);
+      timeRemaining = Math.max(0, 60 - elapsed);
+      const timerEl = document.getElementById('timer');
+      timerEl.textContent = `0:${String(timeRemaining).padStart(2,'0')}`;
+      timerEl.style.color = timeRemaining <= 10 ? '#ef4444' : '#ffffff';
+      if(timeRemaining === 0) { endGame(); }
+    } else {
+      const s = Math.floor((Date.now()-startTime)/1000);
+      document.getElementById('timer').textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+    }
+  }
+
+  function showQuestion() {
+    const q = questions[currentQ];
+    document.getElementById('question-text').textContent = `${q.a} × ${q.b}`;
+    document.getElementById('question-count').textContent = gameMode === 'countdown' ? `Q ${currentQ+1}` : `${currentQ+1} / 20`;
+    const input = document.getElementById('answer-input');
+    input.value = '';
+    input.focus();
+    document.getElementById('question-card').classList.remove('pop-in');
+    void document.getElementById('question-card').offsetWidth;
+    document.getElementById('question-card').classList.add('pop-in');
+  }
+
+  function submitAnswer() {
+    const input = document.getElementById('answer-input');
+    const userAns = parseInt(input.value);
+    if(isNaN(userAns)) { input.classList.add('shake'); setTimeout(()=>input.classList.remove('shake'),300); return; }
+    const q = questions[currentQ];
+    const correct = q.a * q.b;
+    const isCorrect = userAns === correct;
+    if(isCorrect) score++;
+    answers.push({ q:`${q.a} × ${q.b}`, userAns, correct, isCorrect });
+    currentQ++;
+    if(gameMode === 'countdown') {
+      if(timeRemaining <= 0) { endGame(); return; }
+      showQuestion();
+    } else {
+      if(currentQ >= 20) { endGame(); return; }
+      showQuestion();
+    }
+  }
+
+  function endGame() {
+    clearInterval(timerInterval);
+    document.getElementById('game-screen').classList.add('hidden');
+    document.getElementById('results-screen').classList.remove('hidden');
+    if(gameMode === 'countdown') {
+      document.getElementById('score-text').textContent = `${score}`;
+      document.getElementById('time-text').textContent = `60 seconds`;
+    } else {
+      const totalSec = Math.floor((Date.now()-startTime)/1000);
+      document.getElementById('score-text').textContent = `${score}/20`;
+      document.getElementById('time-text').textContent = `${Math.floor(totalSec/60)}:${String(totalSec%60).padStart(2,'0')}`;
+    }
+    document.getElementById('results-emoji').textContent = score >= 18 ? '🏆' : score >= 14 ? '🎉' : score >= 10 ? '👍' : '💪';
+    const list = document.getElementById('results-list');
+    list.innerHTML = answers.map(a => `<div class="flex justify-between items-center py-2 px-3 rounded-lg ${a.isCorrect ? 'bg-emerald-500/20' : 'bg-rose-500/20'}"><span class="text-white">${a.q} = ${a.correct}</span><span class="${a.isCorrect ? 'text-emerald-300' : 'text-rose-300'} font-bold">${a.isCorrect ? '✓' : a.userAns}</span></div>`).join('');
+  }
+
+  function showStart() {
+    document.getElementById('results-screen').classList.add('hidden');
+    document.getElementById('start-screen').classList.remove('hidden');
+  }
+
+  lucide.createIcons();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a059df16fbb0f0ce',t:'MTc4MDQzOTA5OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
